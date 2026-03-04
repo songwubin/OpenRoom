@@ -67,7 +67,7 @@ function isVideoUrl(url: string): boolean {
 }
 
 const Shell: React.FC = () => {
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const [reportEnabled, setReportEnabled] = useState(true);
   const [lang, setLang] = useState<'en' | 'zh'>('en');
   const [liveWallpaper, setLiveWallpaper] = useState(true);
@@ -148,8 +148,8 @@ const Shell: React.FC = () => {
         <AppWindow key={win.appId} win={win} />
       ))}
 
-      {/* Chat Panel */}
-      {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+      {/* Chat Panel — always mounted to preserve chat history */}
+      <ChatPanel onClose={() => setChatOpen(false)} visible={chatOpen} />
 
       <button
         className={`${styles.liveWallpaperToggle} ${chatOpen ? styles.chatOpen : ''} ${liveWallpaper ? styles.liveOn : styles.liveOff}`}

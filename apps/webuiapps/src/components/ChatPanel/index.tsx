@@ -92,7 +92,10 @@ Use file tools to read/write app data, then use the app action tool to notify th
 - When creating content that needs an image, first generate the image with savePath pointing to the app's data directory (e.g. savePath="apps/{appName}/data/images/img-{timestamp}.json"), then reference the relative path "/images/img-{timestamp}.json" in the content's imageUrl field.`;
 }
 
-const ChatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
+  onClose,
+  visible = true,
+}) => {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -410,6 +413,8 @@ const ChatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       handleSend();
     }
   };
+
+  if (!visible) return null;
 
   return (
     <>
