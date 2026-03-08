@@ -106,6 +106,7 @@ const AppWindow: React.FC<Props> = ({ win }) => {
   return (
     <div
       className={styles.window}
+      data-testid={`app-window-${win.appId}`}
       style={{
         left: win.x,
         top: win.y,
@@ -132,6 +133,7 @@ const AppWindow: React.FC<Props> = ({ win }) => {
               reportUserOsAction('CLOSE_APP', { app_id: String(win.appId) });
             }}
             title="Close"
+            data-testid={`window-close-${win.appId}`}
           >
             <X size={12} />
           </button>

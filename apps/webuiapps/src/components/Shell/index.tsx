@@ -105,6 +105,7 @@ const Shell: React.FC = () => {
   return (
     <div
       className={styles.shell}
+      data-testid="shell"
       style={
         activeWallpaper && !showVideo
           ? {
@@ -119,12 +120,13 @@ const Shell: React.FC = () => {
         <video className={styles.videoBg} src={wallpaper} autoPlay loop muted playsInline />
       )}
       {/* Desktop with app icons */}
-      <div className={styles.desktop}>
+      <div className={styles.desktop} data-testid="desktop">
         <div className={styles.iconGrid}>
           {DESKTOP_APPS.map((app) => (
             <button
               key={app.appId}
               className={styles.appIcon}
+              data-testid={`app-icon-${app.appId}`}
               onDoubleClick={() => {
                 openWindow(app.appId);
                 reportUserOsAction('OPEN_APP', { app_id: String(app.appId) });
@@ -155,6 +157,7 @@ const Shell: React.FC = () => {
         className={`${styles.liveWallpaperToggle} ${chatOpen ? styles.chatOpen : ''} ${liveWallpaper ? styles.liveOn : styles.liveOff}`}
         onClick={() => setLiveWallpaper((prev) => !prev)}
         title={liveWallpaper ? 'Live wallpaper: ON' : 'Live wallpaper: OFF'}
+        data-testid="wallpaper-toggle"
       >
         {liveWallpaper ? <Video size={16} /> : <VideoOff size={16} />}
       </button>
@@ -163,6 +166,7 @@ const Shell: React.FC = () => {
         className={`${styles.langToggle} ${chatOpen ? styles.chatOpen : ''}`}
         onClick={handleToggleLang}
         title={lang === 'en' ? 'Switch to Chinese' : 'Switch to English'}
+        data-testid="lang-toggle"
       >
         {lang === 'en' ? 'EN' : 'ZH'}
       </button>
@@ -171,6 +175,7 @@ const Shell: React.FC = () => {
         className={`${styles.reportToggle} ${chatOpen ? styles.chatOpen : ''} ${reportEnabled ? styles.reportOn : styles.reportOff}`}
         onClick={handleToggleReport}
         title={reportEnabled ? 'User action reporting: ON' : 'User action reporting: OFF'}
+        data-testid="report-toggle"
       >
         <Radio size={16} />
       </button>
@@ -179,6 +184,7 @@ const Shell: React.FC = () => {
         className={`${styles.chatToggle} ${chatOpen ? styles.chatOpen : ''}`}
         onClick={() => setChatOpen(!chatOpen)}
         title="Toggle Chat"
+        data-testid="chat-toggle"
       >
         <MessageCircle size={20} />
       </button>

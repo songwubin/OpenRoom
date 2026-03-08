@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Settings, X } from 'lucide-react';
+import { Settings, X, Trash2 } from 'lucide-react';
 import {
   chat,
   loadConfig,
@@ -34,14 +34,14 @@ import {
   isImageGenTool,
   executeImageGenTool,
 } from '@/lib/imageGenTools';
+import {
+  loadChatHistory,
+  loadChatHistorySync,
+  saveChatHistory,
+  clearChatHistory,
+  type DisplayMessage,
+} from '@/lib/chatHistoryStorage';
 import styles from './index.module.scss';
-
-interface DisplayMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'tool';
-  content: string;
-  imageUrl?: string;
-}
 
 function buildSystemPrompt(hasImageGen: boolean): string {
   return `You are a helpful assistant that can interact with apps on the user's device. Respond in English by default. If the user writes in another language, switch to that language.
@@ -66,8 +66,10 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
   onClose,
   visible = true,
 }) => {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  // Init display + LLM history from localStorage cache (sync), then override from file
+  const [initialCache] = useState(() => loadChatHistorySync());
+  const [messages, setMessages] = useState<DisplayMessage[]>(initialCache?.messages ?? []);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(initialCache?.chatHistory ?? []);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -76,10 +78,46 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
   const [imageGenConfig, setImageGenConfig] = useState<ImageGenConfig | null>(loadImageGenConfig);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Refs for latest state — declared before the debounced save effect that uses them
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const chatHistoryRef = useRef(chatHistory);
+  chatHistoryRef.current = chatHistory;
+
+  // Debounced save: persist chat history whenever messages or chatHistory change
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
+    // Skip saving the initial empty state (avoids overwriting persisted data on mount)
+    if (messages.length === 0 && chatHistory.length === 0) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveChatHistory(messagesRef.current, chatHistoryRef.current);
+    }, 500);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [messages, chatHistory]);
+
+  useEffect(() => {
+    // Load from file (async, overrides localStorage cache if available)
+    loadChatHistory().then((data) => {
+      if (data) {
+        setMessages(data.messages);
+        setChatHistory(data.chatHistory);
+      }
+    });
     loadConfig().then((fileConfig) => {
       if (fileConfig) setConfig(fileConfig);
     });
+  }, []);
+
+  const handleClearHistory = useCallback(async () => {
+    setMessages([]);
+    setChatHistory([]);
+    await clearChatHistory();
   }, []);
 
   useEffect(() => {
@@ -91,8 +129,6 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
   }, []);
 
   // Use refs to keep latest state for user action listener
-  const chatHistoryRef = useRef(chatHistory);
-  chatHistoryRef.current = chatHistory;
   const configRef = useRef(config);
   configRef.current = config;
   const imageGenConfigRef = useRef(imageGenConfig);
@@ -446,14 +482,23 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
 
   return (
     <>
-      <div className={styles.panel}>
+      <div className={styles.panel} data-testid="chat-panel">
         <div className={styles.header}>
           <span>Chat</span>
           <div className={styles.headerActions}>
             <button
               className={styles.iconBtn}
+              onClick={handleClearHistory}
+              title="Clear chat"
+              data-testid="clear-chat"
+            >
+              <Trash2 size={16} />
+            </button>
+            <button
+              className={styles.iconBtn}
               onClick={() => setShowSettings(true)}
               title="Settings"
+              data-testid="settings-btn"
             >
               <Settings size={16} />
             </button>
@@ -463,7 +508,7 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
           </div>
         </div>
 
-        <div className={styles.messages}>
+        <div className={styles.messages} data-testid="chat-messages">
           {messages.length === 0 && (
             <div className={styles.emptyState}>
               {config?.apiKey ? 'Start a conversation...' : 'Click ⚙ to configure your LLM API key'}
@@ -499,11 +544,13 @@ const ChatPanel: React.FC<{ onClose: () => void; visible?: boolean }> = ({
             placeholder="Type a message..."
             rows={1}
             disabled={loading}
+            data-testid="chat-input"
           />
           <button
             className={styles.sendBtn}
             onClick={handleSend}
             disabled={loading || !input.trim()}
+            data-testid="send-btn"
           >
             Send
           </button>
@@ -570,8 +617,8 @@ const SettingsModal: React.FC<{
   };
 
   return (
-    <div className={styles.overlay}>
-      <div className={styles.settingsModal}>
+    <div className={styles.overlay} data-testid="settings-overlay">
+      <div className={styles.settingsModal} data-testid="settings-modal">
         <div className={styles.settingsTitle}>LLM Settings</div>
 
         <div className={styles.field}>
