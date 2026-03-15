@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
   MessageCircle,
   Twitter,
@@ -14,6 +14,7 @@ import {
   Radio,
   Video,
   VideoOff,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import ChatPanel from '../ChatPanel';
@@ -70,17 +71,58 @@ const Shell: React.FC = () => {
   const [chatOpen, setChatOpen] = useState(true);
   const [reportEnabled, setReportEnabled] = useState(true);
   const [lang, setLang] = useState<'en' | 'zh'>('en');
-  const [liveWallpaper, setLiveWallpaper] = useState(true);
+  const [liveWallpaper, setLiveWallpaper] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [wallpaper, setWallpaper] = useState(VIDEO_WALLPAPER);
+  const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(
+    null,
+  );
+  const pipRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const windows = useWindows();
 
-  const activeWallpaper = liveWallpaper
-    ? wallpaper
-    : isVideoUrl(wallpaper)
-      ? STATIC_WALLPAPER
-      : wallpaper;
+  const bgWallpaper = isVideoUrl(wallpaper) ? STATIC_WALLPAPER : wallpaper;
   const showVideo = liveWallpaper && isVideoUrl(wallpaper);
+
+  const PIP_W = 200;
+  const PIP_H = 280;
+
+  useEffect(() => {
+    if (!pipPos && barRef.current) {
+      const bar = barRef.current.getBoundingClientRect();
+      const barCenterX = bar.left + bar.width / 2;
+      setPipPos({
+        x: barCenterX - PIP_W / 2,
+        y: bar.top - PIP_H - 16,
+      });
+    }
+  }, [pipPos]);
+
+  const handlePipMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest('button') || !pipPos) return;
+      e.preventDefault();
+      dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pipPos.x, origY: pipPos.y };
+      const onMove = (ev: MouseEvent) => {
+        if (!dragRef.current) return;
+        const dx = ev.clientX - dragRef.current.startX;
+        const dy = ev.clientY - dragRef.current.startY;
+        setPipPos({
+          x: Math.max(0, Math.min(window.innerWidth - PIP_W, dragRef.current.origX + dx)),
+          y: Math.max(0, Math.min(window.innerHeight - PIP_H, dragRef.current.origY + dy)),
+        });
+      };
+      const onUp = () => {
+        dragRef.current = null;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [pipPos],
+  );
 
   const handleToggleReport = useCallback(() => {
     setReportEnabled((prev) => {
@@ -115,18 +157,25 @@ const Shell: React.FC = () => {
     <div
       className={styles.shell}
       data-testid="shell"
-      style={
-        activeWallpaper && !showVideo
-          ? {
-              backgroundImage: `url(${activeWallpaper})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }
-          : undefined
-      }
+      style={{
+        backgroundImage: `url(${bgWallpaper})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
     >
-      {showVideo && (
-        <video className={styles.videoBg} src={wallpaper} autoPlay loop muted playsInline />
+      {showVideo && pipPos && (
+        <div
+          ref={pipRef}
+          className={styles.videoPip}
+          style={{ left: pipPos.x, top: pipPos.y, bottom: 'auto' }}
+          onMouseDown={handlePipMouseDown}
+          data-testid="video-pip"
+        >
+          <video src={wallpaper} autoPlay loop muted playsInline />
+          <button className={styles.pipClose} onClick={() => setLiveWallpaper(false)} title="Close">
+            <X size={14} />
+          </button>
+        </div>
       )}
       {/* Desktop with app icons */}
       <div className={styles.desktop} data-testid="desktop">
@@ -162,7 +211,7 @@ const Shell: React.FC = () => {
       {/* Chat Panel — always mounted to preserve chat history */}
       <ChatPanel onClose={() => setChatOpen(false)} visible={chatOpen} />
 
-      <div className={`${styles.bottomBar} ${chatOpen ? styles.chatOpen : ''}`}>
+      <div ref={barRef} className={`${styles.bottomBar} ${chatOpen ? styles.chatOpen : ''}`}>
         <button
           className={`${styles.barBtn} ${liveWallpaper ? styles.liveOn : styles.liveOff}`}
           onClick={() => setLiveWallpaper((prev) => !prev)}
